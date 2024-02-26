@@ -1,0 +1,63 @@
+let s = {
+  $source: {
+    connectionName: "sample_stream_solar",
+    timeField: {
+      $dateFromString: {
+        dateString: "$timestamp",
+      },
+    },
+  },
+};
+
+let u = {
+  $unwind: {
+    path: "$obs",
+  },
+};
+
+let g = {
+  $group: {
+    _id: "$group_id",
+    max: {
+      $max: "$obs.watts",
+    },
+    avg: {
+      $avg: "$obs.watts",
+    },
+  },
+};
+
+let t = {
+  $tumblingWindow: {
+    interval: {
+      size: NumberInt(1),
+      unit: "second",
+    },
+    pipeline: [u, g],
+  },
+};
+
+let m = {
+  $merge: {
+    into: {
+      connectionName: "mongodb1",
+      db: "MySolar",
+      coll: "solar",
+    },
+  },
+};
+
+//create a sp that aggregates obs.watts over last 1 hour in a tumbling window and send the average and merge to new connection called mongodb1
+sp.createStreamProcessor("avgWatts", [s, t, m]);
+
+//start the sp
+sp.avgWatts.start();
+
+//check if sp is running
+sp.avgWatts.stats();
+
+//drop streams processor
+sp.avgWatts.drop();
+
+//verify the avgWatts instance is dropped
+sp.listStreamProcessors();
